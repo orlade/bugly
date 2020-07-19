@@ -1,26 +1,10 @@
 import * as go from 'gojs';
 import {ObjectData} from 'gojs';
 
-import nodeTemplate from './ClassNodeTemplate'
+import nodeTemplate from './BoxNodeTemplate'
 import linkTemplate from './LinkTemplate'
 
 export default function initDiagram() {
-    // const $ = go.GraphObject.make;
-    // const diagram = $(go.Diagram, {
-    //     'undoManager.isEnabled': true,
-    //     'toolManager.hoverDelay': 0,
-    //     'undoManager.maxHistoryLength': 10,
-    //     'clickCreatingTool.archetypeNodeData': {text: 'new node', color: 'lightblue'},
-    //     model: $(go.TreeModel,
-    //         // {
-    //         //     // IMPORTANT! Must be defined for GraphLinksModel merges and data sync.
-    //         //     linkKeyProperty: 'key'
-    //         // }
-    //         ),
-    //     layout: $(go.TreeLayout, { nodeSpacing: 3 }),
-    //     nodeTemplate,
-    //     linkTemplate,
-    // });
     const $ = go.GraphObject.make;
     const diagram =
         $(go.Diagram,

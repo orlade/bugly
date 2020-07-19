@@ -1,5 +1,7 @@
 const path = require('path');
+
 const Database = require('./db')
+const Github = require('./github')
 
 const express = require('express');
 const expressHandlebars = require('express-handlebars');
@@ -14,6 +16,13 @@ process.stdout.clearLine();
 process.stdout.cursorTo(0);
 
 // Config
+const github = new Github()
+// github.getIssues('orlade/bugly').then((issues) => {
+//     console.log('issue', issues);
+// }).catch(err => {
+//     console.error('issues error', err);
+// })
+
 const db = new Database()
 db.init((err) => {
     if (err) {
@@ -57,12 +66,24 @@ io.on('connection', socket => {
 
         db.getWorkspace(name, (err, workspace) => {
             if (workspace) {
-                io.emit('loaded', workspace)
+                github.getIssues("orlade/bugly")
+                    .then(({data}) => {
+                        workspace.content = issuesToContent(data)
+                        io.emit('loaded', workspace)
+                        db.writeIssues(data)
+                    });
             } else {
                 io.emit('loaded', {name})
             }
         });
     })
 })
+
+const issuesToContent = (issues) => {
+    return {
+        nodes: issues.map(i => ({key: i.id, name: i.title})),
+        links: [],
+    }
+}
 
 console.log("Started")

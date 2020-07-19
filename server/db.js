@@ -1,10 +1,14 @@
+const _ = require('lodash')
+const {promisify} = require('util')
 const sqlite3 = require('sqlite3').verbose();
+const Github = require('./github')
 
 /** Represents the database, exposing methods for logical operations. */
 class Database {
 
     /** SQLite database connection. */
     db;
+    _promiseRun;
 
     /** Connects to and populates the database if necessary. */
     init(callback) {
@@ -16,6 +20,8 @@ class Database {
             if (err) {
                 return callback(err);
             }
+            this._promiseRun = promisify(this.db.run).bind(this.db)
+
             console.log('connected to database');
 
             this._populateTest(callback);
@@ -40,11 +46,12 @@ class Database {
             }
 
             if (!row) {
-                console.log('defaulting row')
-                row = {
-                    name,
-                    content: defaultContent
-                }
+                return callback(null, null)
+                // console.log('defaulting row')
+                // row = {
+                //     name,
+                //     content: defaultContent
+                // }
             }
 
             callback(null, {
@@ -64,25 +71,95 @@ class Database {
         })
     }
 
+    getRepoId(issue) {
+        const repoName = new RegExp('^https://api.github.com/repos/([^/]+/[^/]+)').exec(issue.url)[1]
+        console.debug('getting repo ID for', repoName)
+
+        const _promiseGet = promisify(this.db.get).bind(this.db)
+        return _promiseGet(`SELECT id FROM repositories WHERE full_name = ?`, [repoName]).then(repoId => {
+            if (repoId) {
+                console.debug('got repoId', repoId)
+                return repoId;
+            } else {
+                console.debug('no repoId')
+                return new Github().getRepo(repoName).then(repo => {
+                    console.debug('got repo with id', repo.id)
+                    this.writeRepo(repo)
+                    return repo.id
+                })
+            }
+        })
+    }
+
+    writeRepo(repo) {
+        console.debug('writing repo', repo.full_name)
+        const sql = `INSERT INTO repositories(id, name, full_name, description, has_issues) VALUES(?,?,?,?,?)
+                ON CONFLICT DO NOTHING`
+        return this._promiseRun(sql, [repo.id, repo.name, repo.full_name, repo.description, repo.has_issues])
+    }
+
+    writeIssues(issues, callback) {
+        if (!issues.length) {
+            return callback()
+        }
+
+        this.getRepoId(issues[0]).then(repoId => {
+            const repoName = issues[0]
+            const issueToRow = (i) => [
+                i.id,
+                i.title,
+                i.url,
+                i.user.login,
+                (i.assignee || {login: null}).login,
+                i.state,
+                i.labels.map(l => l.name).join(','),
+                i.comments || '',
+                i.created_at,
+                i.updated_at,
+                repoId,
+            ]
+            const sql = `INSERT INTO issues(id, title, url, user, assignee, state, labels, comments, created_at, updated_at, repository_id)
+                VALUES ${issues.map(i => '(?,?,?,?,?,?,?,?,?,?,?)').join(', ')}
+                ON CONFLICT(id) DO NOTHING` //UPDATE SET phonenumber=excluded.phonenumber
+            console.log(sql, _.flatten(issues.map(issueToRow)))
+            this.db.run(sql, _.flatten(issues.map(issueToRow)), callback)
+        })
+    }
+
+    _runAll(sql) {
+        const sqls = sql.split(';').filter(sql => sql)
+
+        return Promise.all(sqls.map(sql => this._promiseRun(sql)))
+    }
+
     /** Creates tables and a test workspace if they don't exist. */
     _populateTest(callback) {
-        this.db.run(createTableSql, (err) => {
-            if (err) {
-                console.error(err);
-                return callback(err);
-            }
+        console.debug('populating...')
 
-            this.getWorkspace('test', (err, row) => {
-                if (!row) {
-                    return createWorkspace(test, callback)
-                } else {
-                    return callback();
-                }
+        this._runAll(dropTableSql)
+            .then(() => {
+                return this._runAll(createTableSql)
+            }).then(() => {
+                this.getWorkspace('test', (err, row) => {
+                    if (!row) {
+                        console.debug('populated, creating test workspace')
+                        return this.createWorkspace('test', callback)
+                    } else {
+                        console.debug('populated', row)
+                        return callback();
+                    }
+                })
+            }).catch((err) => {
+                return callback(err)
             })
-        });
-        console.log('created table')
     }
 }
+
+const dropTableSql = `
+DROP TABLE IF EXISTS workspaces;
+DROP TABLE IF EXISTS repositories;
+DROP TABLE IF EXISTS workspace_repositories;
+DROP TABLE IF EXISTS issues;`
 
 const createTableSql = `
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -96,6 +173,21 @@ CREATE TABLE IF NOT EXISTS repositories (
     full_name string NOT NULL,
     description string NOT NULL,
     has_issues boolean NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+    id int PRIMARY KEY,
+    title string NOT NULL,
+    url string,
+    user string,
+    assignee string,
+    labels string,
+    state string,
+    comments string,
+    created_at string,
+    updated_at string,
+    repository_id int,
+    FOREIGN KEY(repository_id) REFERENCES repositories(id)
 );
 
 CREATE TABLE IF NOT EXISTS workspace_repositories (
