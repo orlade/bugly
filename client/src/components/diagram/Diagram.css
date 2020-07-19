@@ -1,0 +1,5 @@
+.diagram-component {
+    min-height: 400px;
+    flex-grow: 1;
+    background-color: white;
+}
