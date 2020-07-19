@@ -11,7 +11,8 @@
     "express": "^4.17.1",
     "express-handlebars": "^4.0.4",
     "lodash": "^4.17.15",
-    "socket.io": "^2.3.0"
+    "socket.io": "^2.3.0",
+    "sqlite3": "^5.0.0"
   },
   "scripts": {
     "start": "nodemon ./index.js"

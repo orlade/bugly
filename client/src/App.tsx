@@ -20,14 +20,14 @@ interface AppState {
 export default function App() {
     const [workspace,] = useState('acceleration');
     const [state, setState] = useState({
-            nodeDataArray: [],
-            linkDataArray: [],
-            modelData: {
-                canRelink: true
-            },
-            selectedData: null,
-            skipsDiagramUpdate: false
-        }
+        nodeDataArray: [],
+        linkDataArray: [],
+        modelData: {
+            canRelink: true
+        },
+        selectedData: null,
+        skipsDiagramUpdate: false
+    }
     )
 
     // Load the diagram data for the workspace when it changes.
@@ -37,8 +37,8 @@ export default function App() {
         socket.on('loaded', (workspace: any) => {
             console.debug(`Loaded ${workspace.name}:`, workspace);
             setState({
-                nodeDataArray: workspace.nodes,
-                linkDataArray: workspace.links,
+                nodeDataArray: workspace.content.nodes,
+                linkDataArray: workspace.content.links,
                 modelData: {canRelink: true},
                 selectedData: null,
                 skipsDiagramUpdate: false
